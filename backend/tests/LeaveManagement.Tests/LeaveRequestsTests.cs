@@ -156,6 +156,18 @@ public class LeaveRequestsTests : IClassFixture<TestDatabase>
         Assert.IsType<NotFoundObjectResult>(controller.Approve(999));
     }
 
+    [Fact]
+    public void Search_SqlInjectionPayload_ReturnsNothing()
+    {
+        using var db = _database.NewDb();
+        var emp = SeedEmployeeWithUsedDays(db, quota: 20, usedDays: 5, year: 2026);
+        var controller = new LeaveRequestsController(db);
+
+        var ok = Assert.IsType<OkObjectResult>(controller.Search("%') OR 1=1 --"));
+
+        Assert.Empty(Assert.IsAssignableFrom<IEnumerable<LeaveRequest>>(ok.Value));
+    }
+
     private static LeaveRequest SeedRequest(LeaveDbContext db, int employeeId, LeaveStatus status)
     {
         var request = new LeaveRequest

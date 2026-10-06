@@ -1,0 +1,63 @@
+<form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+  <h3>New request</h3>
+
+  <div class="fields">
+    <label>
+      Employee
+      <select formControlName="employeeId">
+        <option [ngValue]="null" disabled>Select employee</option>
+        @for (e of employees$ | async; track e.id) {
+          <option [ngValue]="e.id">{{ e.name }}</option>
+        }
+      </select>
+      @if (showError('employeeId', 'required')) {
+        <span class="error">Please select an employee.</span>
+      }
+    </label>
+
+    <label>
+      Leave type
+      <select formControlName="type">
+        <option [ngValue]="null" disabled>Select type</option>
+        @for (t of leaveTypes; track t) {
+          <option [ngValue]="t">{{ typeLabels[t] }}</option>
+        }
+      </select>
+      @if (showError('type', 'required')) {
+        <span class="error">Please select a leave type.</span>
+      }
+    </label>
+
+    <label>
+      Start date
+      <input type="date" formControlName="startDate" />
+      @if (showError('startDate', 'required')) {
+        <span class="error">Start date is required.</span>
+      }
+    </label>
+
+    <label>
+      End date
+      <input type="date" formControlName="endDate" />
+      @if (showError('endDate', 'required')) {
+        <span class="error">End date is required.</span>
+      }
+    </label>
+  </div>
+
+  @if (showDateRangeError) {
+    <div class="error">Start date cannot be after the end date.</div>
+  }
+
+  @if (days !== null) {
+    <div class="hint">{{ days }} day(s)</div>
+  }
+
+  @if (serverError()) {
+    <div class="alert alert-error">{{ serverError() }}</div>
+  }
+
+  <button type="submit" [disabled]="submitting()">
+    {{ submitting() ? 'Submitting...' : 'Submit request' }}
+  </button>
+</form>

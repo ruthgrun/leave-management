@@ -9,11 +9,12 @@ import {
 } from '../models/leave-request.model';
 import { LeaveRequestsService } from '../services/leave-requests.service';
 import { getErrorMessage } from '../services/api.config';
+import { LeaveRequestFormComponent } from '../leave-request-form/leave-request-form.component';
 
 @Component({
   selector: 'app-leave-requests',
   standalone: true,
-  imports: [DatePipe],
+  imports: [DatePipe, LeaveRequestFormComponent],
   templateUrl: './leave-requests.component.html',
   styleUrls: ['./leave-requests.component.css']
 })
@@ -49,6 +50,10 @@ export class LeaveRequestsComponent implements OnInit {
           this.loading.set(false);
         }
       });
+  }
+
+  onCreated(request: LeaveRequest): void {
+    this.requests.update(list => [request, ...list]);
   }
 
   approve(id: number): void {

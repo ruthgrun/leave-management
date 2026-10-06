@@ -1,5 +1,7 @@
 <h2>Leave Requests</h2>
 
+<app-leave-request-form (created)="onCreated($event)" />
+
 @if (loading()) {
   <div>Loading...</div>
 } @else if (loadError()) {

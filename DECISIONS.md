@@ -10,6 +10,13 @@
 - **Validation של קלט** ב-DataAnnotations על ה-DTO (`[ApiController]` מחזיר 400 אוטומטית): ערך enum לא חוקי, תאריכים חסרים. כללים עסקיים (טווח תאריכים, יתרה) — ב-service.
 - כל הפעולות מול ה-DB async.
 
+**Frontend**
+- `LeaveRequestsService` עוטף את ה-HTTP; ה-URL של ה-API ב-`InjectionToken` ולא hardcoded בקומפוננטה.
+- טיפוסים ו-enums (`LeaveType`, `LeaveStatus`) במקום `any` ומספרי קסם.
+- state עם signals; כל subscribe עם `takeUntilDestroyed` — אין memory leaks. לא הוספתי state management (NgRx וכו') — לא מוצדק למסך אחד.
+- הטופס בקומפוננטה נפרדת (`LeaveRequestFormComponent`) שמשדרת `created`, והרשימה מוסיפה את הבקשה בלי טעינה מחדש. Reactive Forms עם validator ברמת ה-group לטווח התאריכים.
+- אישור: loading לכל שורה, בהצלחה מוחלפת רק השורה. ב-409 מוצגת הודעה והרשימה מסונכרנת מול השרת — במקרה הזה המידע אצלנו באמת לא עדכני, ולכן רענון מכוון ולא "עיוור".
+
 ## 2. הבאג ביתרת החופשה
 - **מה היה הבאג, איפה, ואיך תיקנתי:** ב-`LeaveRequestsController.Create` חושב `used` אבל לא נעשה בו שימוש — הבדיקה הייתה `days > AnnualQuota`. תוקן ל-`used + days > AnnualQuota`, ובנוסף:
   - נספרים רק ימים מאותה שנה קלנדרית.
@@ -25,7 +32,14 @@
   - עבדתי על SQLite (נעילה של כל הקובץ, אין נעילת שורות). מול PostgreSQL הייתי מוסיף טרנזקציה עם `SELECT ... FROM "Employees" WHERE "Id" = @id FOR UPDATE` לפני בדיקת היתרה, ביצירה ובאישור. זה מסדר בתור את כל הפעולות של אותו עובד, וסוגר מצב שבו שתי בקשות שנוצרות במקביל עוברות שתיהן את בדיקת היתרה.
 
 ## 4. על מה ויתרתי בגלל הזמן
-- ... ומה הייתי עושה עם עוד יום:
+- **Authentication/Authorization** — מי מאשר ומי מגיש (ראו סעיף אבטחה).
+- **נעילות אמיתיות ב-PostgreSQL** (`FOR UPDATE` על העובד) + טסט concurrency אמיתי עם שני DbContext במקביל מול Testcontainers.
+- **Migrations** במקום `EnsureCreated`.
+- **בקשה שחוצה שנה** — פיצול הימים לפי שנה.
+- **ימי עבודה** — כרגע נספרים ימים קלנדריים (כולל סופ"ש וחגים), כמו ב-POC.
+- **דחיית בקשה** (reject) וביטול.
+- **טסטים ל-frontend** — יש טסט ל-validator; הייתי מוסיף טסטים לקומפוננטות עם `HttpTestingController` (אישור מוצלח / 409 / 404).
+- **`EmployeesController`** עדיין עובד ישירות מול ה-DbContext — קריאה פשוטה בלי לוגיקה, לא הצדיק service.
 
 ## 5. שימוש ב‑AI
 ### איפה AI עזר (כולל prompts)
@@ -43,5 +57,6 @@
 - עבדתי במצב **SQLite** (אין Docker במחשב). ב-PowerShell:
   - `$env:Database__Provider="Sqlite"; dotnet test`
   - `$env:Database__Provider="Sqlite"; dotnet run --project src/LeaveManagement.Api`
+- Frontend: `npm start`, טסטים: `npm test`.
 
 </div>

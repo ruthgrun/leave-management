@@ -10,8 +10,7 @@ export interface Employee {
 export interface LeaveRequest {
   id: number;
   employeeId: number;
-  // Populated by the API on reads; absent on the response to a create.
-  employee?: Employee;
+  employeeName: string;
   type: number;
   startDate: string;
   endDate: string;

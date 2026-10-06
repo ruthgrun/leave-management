@@ -20,7 +20,7 @@
   <tbody>
     <tr *ngFor="let r of requests">
       <td>{{ r.id }}</td>
-      <td>{{ r.employee?.name }}</td>
+      <td>{{ r.employeeName }}</td>
       <td>{{ typeLabel(r.type) }}</td>
       <td>{{ r.startDate | date: 'dd/MM/yyyy' }}</td>
       <td>{{ r.endDate | date: 'dd/MM/yyyy' }}</td>

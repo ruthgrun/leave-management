@@ -1,7 +1,6 @@
-using LeaveManagement.Api.Controllers;
 using LeaveManagement.Api.Data;
 using LeaveManagement.Api.Models;
-using Microsoft.AspNetCore.Mvc;
+using LeaveManagement.Api.Services;
 using Xunit;
 
 namespace LeaveManagement.Tests;
@@ -16,156 +15,161 @@ public class LeaveRequestsTests : IClassFixture<TestDatabase>
     }
 
     [Fact]
-    public void Create_WithinQuota_Succeeds()
+    public async Task Create_WithinQuota_Succeeds()
     {
-        // Arrange
         using var db = _database.NewDb();
-        var emp = new Employee { Name = "Test Emp", AnnualQuota = 20 };
-        db.Employees.Add(emp);
-        db.SaveChanges();
+        var emp = SeedEmployeeWithUsedDays(db, quota: 20, usedDays: 0, year: 2026);
+        var service = new LeaveRequestService(db);
 
-        var controller = new LeaveRequestsController(db);
+        var result = await service.CreateAsync(Vacation(emp.Id, new DateTime(2026, 3, 1), new DateTime(2026, 3, 3)));
 
-        // Act: request 3 days, well within the quota.
-        var result = controller.Create(new CreateLeaveRequestDto
-        {
-            EmployeeId = emp.Id,
-            Type = LeaveType.Vacation,
-            StartDate = new DateTime(2026, 3, 1),
-            EndDate = new DateTime(2026, 3, 3)
-        });
-
-        // Assert
-        Assert.IsType<OkObjectResult>(result);
+        Assert.True(result.IsSuccess);
+        Assert.Equal(3, result.Value!.Days);
         Assert.Single(db.LeaveRequests);
     }
 
     [Fact]
-    public void Create_ExceedingRemainingQuota_IsRejected()
+    public async Task Create_ExceedingRemainingQuota_IsRejected()
     {
         using var db = _database.NewDb();
         var emp = SeedEmployeeWithUsedDays(db, quota: 20, usedDays: 18, year: 2026);
-        var controller = new LeaveRequestsController(db);
+        var service = new LeaveRequestService(db);
 
-        var result = controller.Create(Vacation(emp.Id, new DateTime(2026, 3, 1), new DateTime(2026, 3, 3)));
+        var result = await service.CreateAsync(Vacation(emp.Id, new DateTime(2026, 3, 1), new DateTime(2026, 3, 3)));
 
-        Assert.IsType<BadRequestObjectResult>(result);
+        Assert.Equal(ServiceError.Validation, result.Error);
         Assert.Single(db.LeaveRequests);
     }
 
     [Fact]
-    public void Create_ExactlyRemainingQuota_Succeeds()
+    public async Task Create_ExactlyRemainingQuota_Succeeds()
     {
         using var db = _database.NewDb();
         var emp = SeedEmployeeWithUsedDays(db, quota: 20, usedDays: 18, year: 2026);
-        var controller = new LeaveRequestsController(db);
+        var service = new LeaveRequestService(db);
 
-        var result = controller.Create(Vacation(emp.Id, new DateTime(2026, 3, 1), new DateTime(2026, 3, 2)));
+        var result = await service.CreateAsync(Vacation(emp.Id, new DateTime(2026, 3, 1), new DateTime(2026, 3, 2)));
 
-        Assert.IsType<OkObjectResult>(result);
+        Assert.True(result.IsSuccess);
         Assert.Equal(2, db.LeaveRequests.Count());
     }
 
     [Fact]
-    public void Create_PendingRequestsCountTowardsQuota()
+    public async Task Create_PendingRequestsCountTowardsQuota()
     {
         using var db = _database.NewDb();
         var emp = SeedEmployeeWithUsedDays(db, quota: 20, usedDays: 0, year: 2026);
-        var controller = new LeaveRequestsController(db);
+        var service = new LeaveRequestService(db);
 
-        Assert.IsType<OkObjectResult>(
-            controller.Create(Vacation(emp.Id, new DateTime(2026, 2, 1), new DateTime(2026, 2, 15))));
-        var result = controller.Create(Vacation(emp.Id, new DateTime(2026, 4, 1), new DateTime(2026, 4, 10)));
+        var first = await service.CreateAsync(Vacation(emp.Id, new DateTime(2026, 2, 1), new DateTime(2026, 2, 15)));
+        var second = await service.CreateAsync(Vacation(emp.Id, new DateTime(2026, 4, 1), new DateTime(2026, 4, 10)));
 
-        Assert.IsType<BadRequestObjectResult>(result);
+        Assert.True(first.IsSuccess);
+        Assert.Equal(ServiceError.Validation, second.Error);
     }
 
     [Fact]
-    public void Create_DaysUsedInPreviousYear_DoNotCount()
+    public async Task Create_DaysUsedInPreviousYear_DoNotCount()
     {
         using var db = _database.NewDb();
         var emp = SeedEmployeeWithUsedDays(db, quota: 20, usedDays: 18, year: 2025);
-        var controller = new LeaveRequestsController(db);
+        var service = new LeaveRequestService(db);
 
-        var result = controller.Create(Vacation(emp.Id, new DateTime(2026, 3, 1), new DateTime(2026, 3, 10)));
+        var result = await service.CreateAsync(Vacation(emp.Id, new DateTime(2026, 3, 1), new DateTime(2026, 3, 10)));
 
-        Assert.IsType<OkObjectResult>(result);
+        Assert.True(result.IsSuccess);
     }
 
     [Fact]
-    public void Create_EndDateBeforeStartDate_IsRejected()
+    public async Task Create_EndDateBeforeStartDate_IsRejected()
     {
         // Reversed dates used to produce negative Days.
         using var db = _database.NewDb();
         var emp = SeedEmployeeWithUsedDays(db, quota: 20, usedDays: 0, year: 2026);
-        var controller = new LeaveRequestsController(db);
+        var service = new LeaveRequestService(db);
 
-        var result = controller.Create(Vacation(emp.Id, new DateTime(2026, 3, 10), new DateTime(2026, 3, 1)));
+        var result = await service.CreateAsync(Vacation(emp.Id, new DateTime(2026, 3, 10), new DateTime(2026, 3, 1)));
 
-        Assert.IsType<BadRequestObjectResult>(result);
+        Assert.Equal(ServiceError.Validation, result.Error);
         Assert.Empty(db.LeaveRequests);
     }
 
     [Fact]
-    public void Approve_PendingRequest_Succeeds()
+    public async Task Create_UnknownEmployee_ReturnsNotFound()
+    {
+        using var db = _database.NewDb();
+        var service = new LeaveRequestService(db);
+
+        var result = await service.CreateAsync(Vacation(999, new DateTime(2026, 3, 1), new DateTime(2026, 3, 2)));
+
+        Assert.Equal(ServiceError.NotFound, result.Error);
+    }
+
+    [Fact]
+    public async Task Approve_PendingRequest_Succeeds()
     {
         using var db = _database.NewDb();
         var emp = SeedEmployeeWithUsedDays(db, quota: 20, usedDays: 0, year: 2026);
         var request = SeedRequest(db, emp.Id, LeaveStatus.Pending);
-        var controller = new LeaveRequestsController(db);
+        var service = new LeaveRequestService(db);
 
-        var result = controller.Approve(request.Id);
+        var result = await service.ApproveAsync(request.Id);
 
-        var ok = Assert.IsType<OkObjectResult>(result);
-        Assert.Equal(LeaveStatus.Approved, Assert.IsType<LeaveRequest>(ok.Value).Status);
+        Assert.True(result.IsSuccess);
+        Assert.Equal(LeaveStatus.Approved, result.Value!.Status);
     }
 
     [Theory]
     [InlineData(LeaveStatus.Approved)]
     [InlineData(LeaveStatus.Rejected)]
-    public void Approve_AlreadyHandledRequest_ReturnsConflict(LeaveStatus status)
+    public async Task Approve_AlreadyHandledRequest_ReturnsConflict(LeaveStatus status)
     {
         using var db = _database.NewDb();
         var emp = SeedEmployeeWithUsedDays(db, quota: 20, usedDays: 0, year: 2026);
         var request = SeedRequest(db, emp.Id, status);
-        var controller = new LeaveRequestsController(db);
+        var service = new LeaveRequestService(db);
 
-        var result = controller.Approve(request.Id);
+        var result = await service.ApproveAsync(request.Id);
 
-        Assert.IsType<ConflictObjectResult>(result);
+        Assert.Equal(ServiceError.Conflict, result.Error);
     }
 
     [Fact]
-    public void Approve_Twice_SecondReturnsConflict()
+    public async Task Approve_Twice_SecondReturnsConflict()
     {
         using var db = _database.NewDb();
         var emp = SeedEmployeeWithUsedDays(db, quota: 20, usedDays: 0, year: 2026);
         var request = SeedRequest(db, emp.Id, LeaveStatus.Pending);
-        var controller = new LeaveRequestsController(db);
+        var service = new LeaveRequestService(db);
 
-        Assert.IsType<OkObjectResult>(controller.Approve(request.Id));
-        Assert.IsType<ConflictObjectResult>(controller.Approve(request.Id));
+        var first = await service.ApproveAsync(request.Id);
+        var second = await service.ApproveAsync(request.Id);
+
+        Assert.True(first.IsSuccess);
+        Assert.Equal(ServiceError.Conflict, second.Error);
     }
 
     [Fact]
-    public void Approve_UnknownRequest_ReturnsNotFound()
+    public async Task Approve_UnknownRequest_ReturnsNotFound()
     {
         using var db = _database.NewDb();
-        var controller = new LeaveRequestsController(db);
+        var service = new LeaveRequestService(db);
 
-        Assert.IsType<NotFoundObjectResult>(controller.Approve(999));
+        var result = await service.ApproveAsync(999);
+
+        Assert.Equal(ServiceError.NotFound, result.Error);
     }
 
     [Fact]
-    public void Search_SqlInjectionPayload_ReturnsNothing()
+    public async Task Search_SqlInjectionPayload_ReturnsNothing()
     {
         using var db = _database.NewDb();
-        var emp = SeedEmployeeWithUsedDays(db, quota: 20, usedDays: 5, year: 2026);
-        var controller = new LeaveRequestsController(db);
+        SeedEmployeeWithUsedDays(db, quota: 20, usedDays: 5, year: 2026);
+        var service = new LeaveRequestService(db);
 
-        var ok = Assert.IsType<OkObjectResult>(controller.Search("%') OR 1=1 --"));
+        var results = await service.SearchAsync("%') OR 1=1 --");
 
-        Assert.Empty(Assert.IsAssignableFrom<IEnumerable<LeaveRequest>>(ok.Value));
+        Assert.Empty(results);
     }
 
     private static LeaveRequest SeedRequest(LeaveDbContext db, int employeeId, LeaveStatus status)

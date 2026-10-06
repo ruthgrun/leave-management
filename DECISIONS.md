@@ -3,7 +3,12 @@
 # DECISIONS
 
 ## 1. החלטות ארכיטקטוניות
-- ...
+- **Controller → Service → DbContext.** הלוגיקה (יתרה, אישור, validation עסקי) עברה ל-`LeaveRequestService`. ה-Controller רק ממפה תוצאה ל-HTTP.
+- **בלי Repository:** `DbContext` הוא כבר Unit of Work + Repository; שכבה נוספת מעליו רק הייתה עוטפת אותו. גם בלי interface ל-service — יש מימוש אחד, והטסטים רצים מול DB אמיתי ולא mock.
+- **`ServiceResult<T>` במקום exceptions** לשגיאות צפויות (NotFound / Conflict / Validation). השגיאות מוחזרות כ-`ProblemDetails` (RFC 7807), כך שה-frontend יכול להציג את `detail`.
+- **DTOs לתשובה** (`LeaveRequestDto`) במקום להחזיר entities — לא חושפים את מבנה ה-DB, ואין יותר מעגל `LeaveRequest ↔ Employee` (הוסר `ReferenceHandler.IgnoreCycles`).
+- **Validation של קלט** ב-DataAnnotations על ה-DTO (`[ApiController]` מחזיר 400 אוטומטית): ערך enum לא חוקי, תאריכים חסרים. כללים עסקיים (טווח תאריכים, יתרה) — ב-service.
+- כל הפעולות מול ה-DB async.
 
 ## 2. הבאג ביתרת החופשה
 - **מה היה הבאג, איפה, ואיך תיקנתי:** ב-`LeaveRequestsController.Create` חושב `used` אבל לא נעשה בו שימוש — הבדיקה הייתה `days > AnnualQuota`. תוקן ל-`used + days > AnnualQuota`, ובנוסף:

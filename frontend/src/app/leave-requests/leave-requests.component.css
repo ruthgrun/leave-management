@@ -9,3 +9,28 @@ button {
 button:hover {
   background: #186faf;
 }
+
+button:disabled {
+  background: #9fb3c8;
+  cursor: default;
+}
+
+.alert {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  border-radius: 4px;
+}
+
+.alert-error {
+  background: #fde8e8;
+  color: #9b1c1c;
+}
+
+.alert-success {
+  background: #def7ec;
+  color: #03543f;
+}

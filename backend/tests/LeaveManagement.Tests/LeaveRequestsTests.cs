@@ -106,6 +106,72 @@ public class LeaveRequestsTests : IClassFixture<TestDatabase>
         Assert.Empty(db.LeaveRequests);
     }
 
+    [Fact]
+    public void Approve_PendingRequest_Succeeds()
+    {
+        using var db = _database.NewDb();
+        var emp = SeedEmployeeWithUsedDays(db, quota: 20, usedDays: 0, year: 2026);
+        var request = SeedRequest(db, emp.Id, LeaveStatus.Pending);
+        var controller = new LeaveRequestsController(db);
+
+        var result = controller.Approve(request.Id);
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        Assert.Equal(LeaveStatus.Approved, Assert.IsType<LeaveRequest>(ok.Value).Status);
+    }
+
+    [Theory]
+    [InlineData(LeaveStatus.Approved)]
+    [InlineData(LeaveStatus.Rejected)]
+    public void Approve_AlreadyHandledRequest_ReturnsConflict(LeaveStatus status)
+    {
+        using var db = _database.NewDb();
+        var emp = SeedEmployeeWithUsedDays(db, quota: 20, usedDays: 0, year: 2026);
+        var request = SeedRequest(db, emp.Id, status);
+        var controller = new LeaveRequestsController(db);
+
+        var result = controller.Approve(request.Id);
+
+        Assert.IsType<ConflictObjectResult>(result);
+    }
+
+    [Fact]
+    public void Approve_Twice_SecondReturnsConflict()
+    {
+        using var db = _database.NewDb();
+        var emp = SeedEmployeeWithUsedDays(db, quota: 20, usedDays: 0, year: 2026);
+        var request = SeedRequest(db, emp.Id, LeaveStatus.Pending);
+        var controller = new LeaveRequestsController(db);
+
+        Assert.IsType<OkObjectResult>(controller.Approve(request.Id));
+        Assert.IsType<ConflictObjectResult>(controller.Approve(request.Id));
+    }
+
+    [Fact]
+    public void Approve_UnknownRequest_ReturnsNotFound()
+    {
+        using var db = _database.NewDb();
+        var controller = new LeaveRequestsController(db);
+
+        Assert.IsType<NotFoundObjectResult>(controller.Approve(999));
+    }
+
+    private static LeaveRequest SeedRequest(LeaveDbContext db, int employeeId, LeaveStatus status)
+    {
+        var request = new LeaveRequest
+        {
+            EmployeeId = employeeId,
+            Type = LeaveType.Vacation,
+            StartDate = new DateTime(2026, 5, 1),
+            EndDate = new DateTime(2026, 5, 3),
+            Days = 3,
+            Status = status
+        };
+        db.LeaveRequests.Add(request);
+        db.SaveChanges();
+        return request;
+    }
+
     private static Employee SeedEmployeeWithUsedDays(LeaveDbContext db, int quota, int usedDays, int year)
     {
         var emp = new Employee { Name = "Test Emp", AnnualQuota = quota };

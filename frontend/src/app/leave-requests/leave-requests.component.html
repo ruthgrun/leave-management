@@ -2,6 +2,13 @@
 
 <app-leave-request-form (created)="onCreated($event)" />
 
+@if (notice(); as n) {
+  <div class="alert" [class.alert-success]="n.kind === 'success'" [class.alert-error]="n.kind === 'error'" role="status">
+    {{ n.text }}
+    <button type="button" class="link" (click)="dismissNotice()" aria-label="Dismiss">✕</button>
+  </div>
+}
+
 @if (loading()) {
   <div>Loading...</div>
 } @else if (loadError()) {
@@ -35,7 +42,9 @@
           <td>{{ statusLabels[r.status] }}</td>
           <td>
             @if (r.status === LeaveStatus.Pending) {
-              <button type="button" (click)="approve(r.id)">Approve</button>
+              <button type="button" (click)="approve(r)" [disabled]="isApproving(r.id)">
+                {{ isApproving(r.id) ? 'Approving...' : 'Approve' }}
+              </button>
             }
           </td>
         </tr>

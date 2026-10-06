@@ -34,3 +34,9 @@ button:disabled {
   background: #def7ec;
   color: #03543f;
 }
+
+button.link {
+  background: none;
+  color: inherit;
+  padding: 0 4px;
+}
